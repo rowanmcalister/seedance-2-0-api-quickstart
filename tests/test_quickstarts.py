@@ -20,6 +20,7 @@ REPO = Path(__file__).resolve().parent.parent
 class FakeVideoAPI(BaseHTTPRequestHandler):
     jobs = {}
     log = []
+    agents = []
 
     def _send(self, status, payload=None, raw=None):
         data = raw if raw is not None else json.dumps(payload).encode()
@@ -32,6 +33,7 @@ class FakeVideoAPI(BaseHTTPRequestHandler):
     def do_POST(self):
         body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
         self.log.append(("POST", self.path, self.headers["Authorization"], body))
+        self.agents.append(self.headers.get("User-Agent", ""))
         if self.path != "/v1/videos/generations":
             return self._send(404, {"error": {"code": "not_found"}})
         if body.get("resolution") == "1080p" and body.get("model") == "seedance-2.0-mini":
@@ -43,6 +45,7 @@ class FakeVideoAPI(BaseHTTPRequestHandler):
 
     def do_GET(self):
         self.log.append(("GET", self.path, self.headers["Authorization"], None))
+        self.agents.append(self.headers.get("User-Agent", ""))
         parts = self.path.strip("/").split("/")  # v1 videos <id> [content]
         job = self.jobs.get(parts[2]) if len(parts) >= 3 else None
         if job is None:
@@ -65,7 +68,7 @@ class FakeVideoAPI(BaseHTTPRequestHandler):
 
 @pytest.fixture
 def api():
-    FakeVideoAPI.jobs, FakeVideoAPI.log = {}, []
+    FakeVideoAPI.jobs, FakeVideoAPI.log, FakeVideoAPI.agents = {}, [], []
     server = ThreadingHTTPServer(("127.0.0.1", 0), FakeVideoAPI)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     yield f"http://127.0.0.1:{server.server_address[1]}/v1"
@@ -93,6 +96,8 @@ def test_python_quickstart(api, tmp_path):
     body = check_success(result, tmp_path / "first-video.mp4", seconds=6)
     assert body == {"model": "seedance-2.0", "prompt": "a fox in snow", "duration": 6, "resolution": "720p", "aspect_ratio": "16:9"}
     assert "about $0.660" in result.stderr
+    # every call names the client instead of urllib's default "Python-urllib/3.x"
+    assert FakeVideoAPI.agents and set(FakeVideoAPI.agents) == {"seedance-2-0-api-quickstart/1.0"}
 
 
 def test_python_quickstart_reports_failures_and_api_errors(api, tmp_path):

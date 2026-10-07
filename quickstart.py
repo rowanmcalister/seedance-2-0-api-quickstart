@@ -12,6 +12,7 @@ import time
 import urllib.error
 import urllib.request
 
+USER_AGENT = "seedance-2-0-api-quickstart/1.0"
 RATES = {  # USD per output second, 2026-10-07
     "seedance-2.0": {"480p": 0.053, "720p": 0.11, "1080p": 0.28, "4k": 0.58},
     "seedance-2.0-fast": {"480p": 0.042, "720p": 0.091},
@@ -22,6 +23,7 @@ RATES = {  # USD per output second, 2026-10-07
 def call(base, key, method, path, body=None, raw=False):
     request = urllib.request.Request(base + path, method=method, data=json.dumps(body).encode() if body else None)
     request.add_header("Authorization", f"Bearer {key}")
+    request.add_header("User-Agent", USER_AGENT)
     if body:
         request.add_header("Content-Type", "application/json")
     try:
